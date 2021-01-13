@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var VERSION string = "0.1"
@@ -40,6 +41,15 @@ type Forms Dict
 type RawData interface{}
 type Files Dict
 type Cookies Dict
+type ClientConfig struct {
+	TimeOut int
+}
+
+func (c *ClientConfig) Update(u ClientConfig) {
+	if u.TimeOut != 0 {
+		c.TimeOut = u.TimeOut
+	}
+}
 
 type Json struct {
 	Data   interface{}
@@ -52,23 +62,26 @@ type Auth struct {
 }
 
 type Session struct {
-	Request  *Request
-	Response *Response
-	Client   *http.Client
+	Request      *Request
+	Response     *Response
+	Client       *http.Client
+	ClientConfig *ClientConfig
 }
 
 type Request struct {
-	R       *http.Request
-	Session *Session
-	Jar     http.CookieJar
-	Params  Dict
-	Datas   Dict
-	Body    []byte
+	R            *http.Request
+	Session      *Session
+	Jar          http.CookieJar
+	Params       Dict
+	Datas        Dict
+	Body         []byte
+	ClientConfig *ClientConfig
 }
 
 type Response struct {
 	R       *http.Response
 	Request *Request
+	body    []byte
 }
 
 func paramsMakeKey(prefix string, k string) string {
@@ -84,13 +97,26 @@ func (r *Request) String() string {
 }
 
 func (r *Request) MarshalYAML() (interface{}, error) {
-	return Dict{
-		"Url":    r.R.URL,
-		"Header": r.R.Header,
-
+	if r == nil {
+		return "<nil>", nil
+	}
+	var y Dict
+	if r.R != nil {
+		y = Dict{
+			"Url":    r.R.URL,
+			"Header": r.R.Header,
+		}
+	} else {
+		y = Dict{}
+	}
+	if r.ClientConfig != nil {
+		y["ClientConfig"] = *r.ClientConfig
+	}
+	if len(r.Body) > 0 {
 		// yaml encode字符串时如果存在\n则使用yaml_LITERAL_SCALAR_STYLE风格
-		"Body": string(r.Body) + "\n",
-	}, nil
+		y["Body"] = string(r.Body) + "\n"
+	}
+	return y, nil
 }
 
 type _httpResponse http.Response
@@ -109,16 +135,35 @@ func (r *_httpResponse) MarshalYAML() (interface{}, error) {
 		"ProtoMajor": r.ProtoMajor,
 		"ProtoMinor": r.ProtoMinor,
 		"Header":     r.Header,
-
 		// yaml encode字符串时如果存在\n则使用yaml_LITERAL_SCALAR_STYLE风格
-		"Body": string([]byte(body)) + "\n",
+		"Body": string(body) + "\n",
 	}, nil
 }
 
+func (r *Response) GetBody() []byte {
+	if len(r.body) > 0 {
+		return r.body
+	}
+	var err error
+
+	if r.R == nil {
+		return nil
+	}
+
+	r.body, err = ioutil.ReadAll(r.R.Body)
+	if err == nil {
+		r.R.Body = ioutil.NopCloser(bytes.NewReader(r.body))
+	}
+	return r.body
+}
+
 func (r *Response) String() string {
-	h := Dict{
-		"R":       (*_httpResponse)(r.R),
-		"Request": r.Request,
+	h := Dict{}
+	if r.R != nil {
+		h["R"] = (*_httpResponse)(r.R)
+	}
+	if r.Request != nil {
+		h["Request"] = r.Request
 	}
 	return string(YamlEncode(h).([]byte))
 }
@@ -198,7 +243,32 @@ func NewSession(args ...interface{}) *Session {
 		sess.Client = c
 	}
 
+	sess.ClientConfig = &ClientConfig{}
+	sess.Config(&ClientConfig{
+		TimeOut: 10,
+	})
+
 	return sess
+}
+
+func (s *Session) Config(args ...interface{}) {
+	for _, arg := range args {
+		switch cfg := arg.(type) {
+		case ClientConfig:
+			{
+				s.ClientConfig.Update(cfg)
+				if cfg.TimeOut != 0 {
+					if cfg.TimeOut == -1 {
+						s.Client.Timeout = 0
+					} else {
+						s.Client.Timeout = time.Duration(cfg.TimeOut) * time.Second
+					}
+				}
+			}
+		case *ClientConfig:
+			s.Config(*cfg)
+		}
+	}
 }
 
 func dictUpdate(d *Dict, u *Dict) {
@@ -249,6 +319,8 @@ func NewRequest(method string, urlstr string, args ...interface{}) (*Request, er
 				}
 				req.R.Header.Set(k, headerval)
 			}
+		case ClientConfig:
+			req.ClientConfig = &val
 		case Params:
 			dictUpdate(&req.Params, (*Dict)(&val))
 		case Datas:
@@ -298,38 +370,41 @@ func NewRequest(method string, urlstr string, args ...interface{}) (*Request, er
 	return req, nil
 }
 
-func (s *Session) Get(urlstr string, args ...interface{}) (*Response, error) {
-	req, err := NewRequest("GET", urlstr, args...)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := s.Client.Do(req.R)
-
+func (s *Session) Do(method string, urlstr string, args ...interface{}) (*Response, error) {
+	req, err := NewRequest(method, urlstr, args...)
 	if err != nil {
 		return nil, err
 	}
 
 	resp := &Response{}
-	resp.R = res
 	resp.Request = req
+
+	if req.ClientConfig != nil {
+		s.Config(req.ClientConfig)
+	}
+
+	res, err := s.Client.Do(req.R)
+	resp.R = res
+
+	if err != nil {
+		return resp, err
+	}
+
 	return resp, nil
 }
 
+func (s *Session) Get(urlstr string, args ...interface{}) (*Response, error) {
+	return s.Do("GET", urlstr, args...)
+}
+
 func (s *Session) Post(urlstr string, args ...interface{}) (*Response, error) {
-	req, err := NewRequest("POST", urlstr, args...)
-	if err != nil {
-		return nil, err
-	}
+	return s.Do("POST", urlstr, args...)
+}
 
-	res, err := s.Client.Do(req.R)
+func (s *Session) Put(urlstr string, args ...interface{}) (*Response, error) {
+	return s.Do("PUT", urlstr, args...)
+}
 
-	if err != nil {
-		return nil, err
-	}
-
-	resp := &Response{}
-	resp.R = res
-	resp.Request = req
-	return resp, nil
+func (s *Session) Delete(urlstr string, args ...interface{}) (*Response, error) {
+	return s.Do("DELETE", urlstr, args...)
 }

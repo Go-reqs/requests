@@ -1,2 +1,4 @@
 .tags
 *.go.back*
+go.mod
+go.sum
