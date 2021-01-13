@@ -17,7 +17,7 @@ package requests
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	_ "fmt"
 	"github.com/alessio/shellescape"
 	"github.com/go-yaml/yaml"
 	"io"
@@ -102,7 +102,6 @@ func (r *_httpResponse) MarshalYAML() (interface{}, error) {
 	} else {
 		r.Body = ioutil.NopCloser(bytes.NewReader(body))
 	}
-	fmt.Println("contains: ", strings.Contains(string(body), "\n"))
 	return Dict{
 		"Status":     r.Status,
 		"StatusCode": r.StatusCode,
@@ -142,7 +141,7 @@ func (r *Request) Curl() string {
 		s = append(s, `-d `+shellescape.Quote(string(r.Body)))
 	}
 
-	return strings.Join(s, "\\\n")
+	return strings.Join(s, " \\\n")
 }
 
 func buildURLParams_(prefix string, params interface{}) []string {
