@@ -8,7 +8,8 @@ import (
 func testPostForm() {
 	sess := req.NewSession()
 	res, err := sess.Post(
-		"http://httpbin.org/post?name1=value1&name2=value2",
+		//"http://httpbin.org/post?name1=value1&name2=value2",
+		"http://127.0.0.1:8088/post?name1=value1&name2=value2",
 		req.Header{"Token": "abcd"},
 		req.Params{"time": "2021-01-01"},
 		req.Datas{"event": "golang post"},
