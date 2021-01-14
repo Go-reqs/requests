@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func _TestParamsBuild(t *testing.T) {
+func TestParamsBuild(t *testing.T) {
 	// t.Fatal("not implemented")
 	d := Dict{
 		"k1": "V1",
@@ -28,7 +28,7 @@ func _TestParamsBuild(t *testing.T) {
 	}
 }
 
-func _TestGet(t *testing.T) {
+func TestGet(t *testing.T) {
 	sess := NewSession()
 	res, err := sess.Get(
 		"http://httpbin.org/cookies/set?na%20me1=value1&name2=value2",
@@ -43,7 +43,7 @@ func _TestGet(t *testing.T) {
 	t.Logf("%s", res.Request.Curl())
 }
 
-func _TestPostForm(t *testing.T) {
+func TestPostForm(t *testing.T) {
 	sess := NewSession()
 	res, err := sess.Post(
 		"http://httpbin.org/post?na%20me1=value1&name2=value2",
@@ -55,7 +55,7 @@ func _TestPostForm(t *testing.T) {
 	t.Logf("%s", res.Request.Curl())
 }
 
-func _TestPostJson(t *testing.T) {
+func TestPostJson(t *testing.T) {
 	sess := NewSession()
 	res, err := sess.Post(
 		"http://httpbin.org/post?na%20me1=value1&name2=value2",
@@ -67,7 +67,7 @@ func _TestPostJson(t *testing.T) {
 	t.Logf("%s", res.Request.Curl())
 }
 
-func _TestPostRawJson(t *testing.T) {
+func TestPostRawJson(t *testing.T) {
 	sess := NewSession()
 	res, err := sess.Post(
 		"http://httpbin.org/post?na%20me1=value1&name2=value2",

@@ -140,6 +140,9 @@ func (r *_httpResponse) MarshalYAML() (interface{}, error) {
 	}, nil
 }
 
+func (r *Response) Text() string {
+	return string(r.GetBody())
+}
 func (r *Response) GetBody() []byte {
 	if len(r.body) > 0 {
 		return r.body
@@ -305,7 +308,7 @@ func NewRequest(method string, urlstr string, args ...interface{}) (*Request, er
 	if err != nil {
 		return nil, err
 	}
-	req.R.Header.Set("User-Agent", "go-requests."+VERSION)
+	req.R.Header.Set("User-Agent", "go-requests:v"+VERSION)
 	var (
 		rawData interface{}
 	)

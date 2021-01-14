@@ -2,3 +2,4 @@
 *.go.back*
 go.mod
 go.sum
+test.sh

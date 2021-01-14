@@ -21,7 +21,7 @@ func testGet() {
 	}
 	log.Printf("status: %s %d", res.R.Status, res.R.StatusCode)
 	log.Printf("content: %s", res.GetBody())
-	log.Printf("%s, %v", res, err)
+	//log.Printf("%s, %v", res, err)
 	//log.Printf("%s", res.Request.Curl())
 }
 
