@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	_ "reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -39,7 +40,9 @@ type Header Dict
 type Params Dict
 type Datas Dict
 type Forms Dict
-type RawData interface{}
+type RawData struct {
+	D interface{}
+}
 type Files Dict
 type Cookies Dict
 type ClientConfig struct {
@@ -94,7 +97,7 @@ func paramsMakeKey(prefix string, k string) string {
 }
 
 func (r *Request) String() string {
-	return string(YamlEncode(r).([]byte))
+	return string(YamlEncode(r).D.([]byte))
 }
 
 func (r *Request) MarshalYAML() (interface{}, error) {
@@ -169,7 +172,7 @@ func (r *Response) String() string {
 	if r.Request != nil {
 		h["Request"] = r.Request
 	}
-	return string(YamlEncode(h).([]byte))
+	return string(YamlEncode(h).D.([]byte))
 }
 
 func (r *Request) Curl() string {
@@ -287,18 +290,18 @@ func dictUpdate(d *Dict, u *Dict) {
 func YamlEncode(data interface{}) RawData {
 	d, err := yaml.Marshal(data)
 	if err != nil {
-		return nil
+		return RawData{nil}
 	}
-	return RawData([]byte(d))
+	return RawData{[]byte(d)}
 }
 
 func JsonEncode(data interface{}) RawData {
 	b := new(bytes.Buffer)
 	err := json.NewEncoder(b).Encode(data)
 	if err != nil {
-		return nil
+		return RawData{nil}
 	}
-	return RawData(b.Bytes())
+	return RawData{b.Bytes()}
 }
 
 func NewRequest(method string, urlstr string, args ...interface{}) (*Request, error) {
@@ -311,7 +314,7 @@ func NewRequest(method string, urlstr string, args ...interface{}) (*Request, er
 	}
 	req.R.Header.Set("User-Agent", "go-requests:v"+VERSION)
 	var (
-		rawData interface{}
+		rawData RawData
 	)
 	for _, arg := range args {
 		switch val := arg.(type) {
@@ -333,12 +336,12 @@ func NewRequest(method string, urlstr string, args ...interface{}) (*Request, er
 			rawData = val
 		}
 	}
-	if rawData != nil {
-		raw, ok := rawData.([]byte)
+	if rawData.D != nil {
+		raw, ok := rawData.D.([]byte)
 		if ok {
 			req.Body = raw
 		} else {
-			raw, ok := rawData.(string)
+			raw, ok := rawData.D.(string)
 			if ok {
 				req.Body = []byte(raw)
 			}
@@ -362,8 +365,13 @@ func NewRequest(method string, urlstr string, args ...interface{}) (*Request, er
 			}
 			req.Body = b.Bytes()
 		}
-		req.R.Body = ioutil.NopCloser(bytes.NewReader(req.Body))
 	}
+
+	req.R.Body = ioutil.NopCloser(bytes.NewReader(req.Body))
+	//{
+	//	req.R.TransferEncoding = []string{"identity", "chunked", "gzip"}
+	//	req.R.Header.Set("Content-Length", strconv.Itoa(len(req.Body)))
+	//}
 
 	params := buildURLParams("", req.Params)
 	if req.R.URL.RawQuery == "" {
